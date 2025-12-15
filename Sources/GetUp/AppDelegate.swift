@@ -150,7 +150,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             alertWindow?.setFrameOrigin(NSPoint(x: x, y: y))
         }
         
+        print("Showing alert window at \(alertWindow?.frame ?? .zero)")
         alertWindow?.makeKeyAndOrderFront(nil)
+        alertWindow?.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
     }
     
