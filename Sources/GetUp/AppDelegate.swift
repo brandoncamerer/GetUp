@@ -90,14 +90,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if alertWindow == nil {
             let alertView = AlertView(
                 onSnooze: { [weak self] in
-                    self?.closeAlert()
-                    print("Snoozing...")
-                    self?.scheduleNotification(interval: SettingsManager.shared.snoozeIntervalSeconds, isSnooze: true)
+                    // Perform on next run loop to allow button animation to complete
+                    DispatchQueue.main.async {
+                        self?.closeAlert()
+                        print("Snoozing...")
+                        self?.scheduleNotification(interval: SettingsManager.shared.snoozeIntervalSeconds, isSnooze: true)
+                    }
                 },
                 onOK: { [weak self] in
-                    self?.closeAlert()
-                    print("Acknowledged. Resetting timer.")
-                    self?.scheduleNotification(interval: SettingsManager.shared.initialIntervalSeconds, isSnooze: false)
+                    // Perform on next run loop to allow button animation to complete
+                    DispatchQueue.main.async {
+                        self?.closeAlert()
+                        print("Acknowledged. Resetting timer.")
+                        self?.scheduleNotification(interval: SettingsManager.shared.initialIntervalSeconds, isSnooze: false)
+                    }
                 },
                 isSnoozeAvailable: !isSnooze // If it IS a snooze alert, no snooze button (per original request)
             )
@@ -114,6 +120,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             window.hasShadow = true
             window.level = .floating // Float above other windows
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary] // Show on all spaces
+            window.isReleasedWhenClosed = false // Important: We manage the lifecycle manually
             
             self.alertWindow = window
         }
