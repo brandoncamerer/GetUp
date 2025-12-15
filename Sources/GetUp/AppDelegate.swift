@@ -6,7 +6,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var settingsWindow: NSWindow?
+    var alertWindow: NSWindow?
     var menuBarTimer: Timer?
+    var isAlertVisible = false
     let center = UNUserNotificationCenter.current()
     
     override init() {
@@ -75,7 +77,68 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             button.title = String(format: " %02d:%02d", minutes, seconds)
         } else {
             button.title = " GET UP!"
+            // Trigger Alert Window if not already shown
+            if !isAlertVisible {
+                showAlert(isSnooze: false) // Default to regular alert
+            }
         }
+    }
+    
+    func showAlert(isSnooze: Bool) {
+        isAlertVisible = true
+        
+        // Play Sound
+        NSSound(named: "Glass")?.play()
+        
+        // Create Window
+        if alertWindow == nil {
+            let alertView = AlertView(
+                onSnooze: { [weak self] in
+                    self?.closeAlert()
+                    print("Snoozing...")
+                    self?.scheduleNotification(interval: SettingsManager.shared.snoozeIntervalSeconds, isSnooze: true)
+                },
+                onOK: { [weak self] in
+                    self?.closeAlert()
+                    print("Acknowledged. Resetting timer.")
+                    self?.scheduleNotification(interval: SettingsManager.shared.initialIntervalSeconds, isSnooze: false)
+                },
+                isSnoozeAvailable: !isSnooze // If it IS a snooze alert, no snooze button (per original request)
+            )
+            
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 350, height: 200),
+                styleMask: [.borderless, .nonactivatingPanel], // Borderless for custom look
+                backing: .buffered,
+                defer: false
+            )
+            window.contentViewController = NSHostingController(rootView: alertView)
+            window.backgroundColor = .clear
+            window.isOpaque = false
+            window.hasShadow = true
+            window.level = .floating // Float above other windows
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary] // Show on all spaces
+            
+            self.alertWindow = window
+        }
+        
+        // Position Top Right
+        if let screen = NSScreen.main {
+            let screenRect = screen.visibleFrame
+            let windowRect = alertWindow!.frame
+            let x = screenRect.maxX - windowRect.width - 20 // 20px margin
+            let y = screenRect.maxY - windowRect.height - 20 // 20px margin
+            alertWindow?.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+        
+        alertWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func closeAlert() {
+        alertWindow?.close()
+        alertWindow = nil
+        isAlertVisible = false
     }
     
     func setupPopover() {
@@ -170,19 +233,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     func checkAndStart() {
-        center.getPendingNotificationRequests { requests in
-            if requests.isEmpty {
-                print("No pending notifications. Starting timer.")
-                self.scheduleNotification(interval: SettingsManager.shared.initialIntervalSeconds, isSnooze: false)
-            } else {
-                // If running, try to recover the state (approximate)
-                // Since we can't get the exact fire date easily from UNNotificationRequest in a way that persists across app restarts perfectly without storage,
-                // we will just reset it for now to ensure UI sync, OR we could store the target date in UserDefaults.
-                // For this iteration, let's just restart it to be safe and in sync.
-                print("Pending notifications found. Restarting to sync UI.")
-                self.restartTimer()
-            }
-        }
+        // Always start fresh to ensure sync and clear old notifications
+        print("Starting timer.")
+        self.restartTimer()
     }
     
     func restartTimer() {
@@ -192,30 +245,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     func scheduleNotification(interval: TimeInterval, isSnooze: Bool) {
-        let content = UNMutableNotificationContent()
-        content.title = "GET UP!"
-        content.body = isSnooze ? "You snoozed. Get up now!" : "Time to stand up!"
-        content.sound = .default
-        content.categoryIdentifier = isSnooze ? "SNOOZE" : "REGULAR"
-        
-        if #available(macOS 12.0, *) {
-            content.interruptionLevel = .timeSensitive
-        }
-        
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
-        
         // Update State
         let targetDate = Date().addingTimeInterval(interval)
         TimerState.shared.updateTarget(date: targetDate, interval: interval)
         
-        center.add(request) { error in
-            if let error = error {
-                print("Error scheduling: \(error)")
-            } else {
-                print("Notification scheduled in \(interval) seconds.")
-            }
-        }
+        print("Timer started for \(interval) seconds.")
+        
+        // Note: We no longer schedule system notifications (UNNotificationRequest)
+        // because we are using the custom persistent AlertWindow.
     }
     
     // MARK: - UNUserNotificationCenterDelegate
