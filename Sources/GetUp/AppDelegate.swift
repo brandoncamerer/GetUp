@@ -43,15 +43,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         print("System woke up. Checking timer state...")
         if let target = TimerState.shared.nextNotificationDate {
             let remaining = target.timeIntervalSinceNow
-            // If timer has expired (negative remaining), restart it automatically
-            // This handles the case where the computer was asleep for a long time
-            if remaining < 0 {
-                print("Timer expired while sleeping. Restarting.")
-                restartTimer()
-            } else {
-                print("Timer still running. Remaining: \(remaining)")
-                updateMenuBarTitle()
-            }
+            // If timer has expired (negative remaining), we want to show the alert immediately
+            // instead of silently restarting. The updateMenuBarTitle() function handles the
+            // logic for expired timers (shows "GET UP!" and triggers alert).
+            print("Timer check on wake. Remaining: \(remaining)")
+            updateMenuBarTitle()
         }
     }
     
@@ -122,8 +118,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             self.alertWindow = window
         }
         
-        // Position Top Right
-        if let screen = NSScreen.main {
+        // Position relative to status item button
+        if let button = statusItem.button, let buttonWindow = button.window {
+            let buttonFrame = buttonWindow.frame
+            let windowSize = alertWindow!.frame.size
+            
+            // Center horizontally relative to button
+            var x = buttonFrame.midX - (windowSize.width / 2)
+            
+            // Position below the button with a small gap
+            let y = buttonFrame.minY - windowSize.height - 5
+            
+            // Ensure it stays on screen (horizontally)
+            if let screen = NSScreen.main {
+                let screenFrame = screen.visibleFrame
+                if x + windowSize.width > screenFrame.maxX {
+                    x = screenFrame.maxX - windowSize.width - 10
+                }
+                if x < screenFrame.minX {
+                    x = screenFrame.minX + 10
+                }
+            }
+            
+            alertWindow?.setFrameOrigin(NSPoint(x: x, y: y))
+        } else if let screen = NSScreen.main {
+            // Fallback to Top Right
             let screenRect = screen.visibleFrame
             let windowRect = alertWindow!.frame
             let x = screenRect.maxX - windowRect.width - 20 // 20px margin
@@ -240,6 +259,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     
     func restartTimer() {
         center.removeAllPendingNotificationRequests()
+        center.removeAllDeliveredNotifications()
         print("Timer restarted with new settings.")
         scheduleNotification(interval: SettingsManager.shared.initialIntervalSeconds, isSnooze: false)
     }
