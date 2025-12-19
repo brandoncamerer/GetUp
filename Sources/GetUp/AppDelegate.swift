@@ -239,8 +239,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         window.title = "GetUp Settings"
         window.styleMask = [.titled, .closable, .resizable]
         window.setContentSize(NSSize(width: 340, height: 280))
-        window.center()
         window.isReleasedWhenClosed = true // Allow proper cleanup
+        
+        // Position below the menu bar icon
+        if let button = statusItem.button, let buttonWindow = button.window {
+            let buttonFrame = buttonWindow.frame
+            let windowSize = window.frame.size
+            
+            // Center horizontally relative to button
+            var x = buttonFrame.midX - (windowSize.width / 2)
+            
+            // Position below the button with a small gap
+            let y = buttonFrame.minY - windowSize.height - 5
+            
+            // Ensure it stays on screen (horizontally)
+            if let screen = NSScreen.main {
+                let screenFrame = screen.visibleFrame
+                if x + windowSize.width > screenFrame.maxX {
+                    x = screenFrame.maxX - windowSize.width - 10
+                }
+                if x < screenFrame.minX {
+                    x = screenFrame.minX + 10
+                }
+            }
+            
+            window.setFrameOrigin(NSPoint(x: x, y: y))
+        } else {
+            // Fallback to center if button not found
+            window.center()
+        }
         
         self.settingsWindow = window
         window.makeKeyAndOrderFront(nil)
