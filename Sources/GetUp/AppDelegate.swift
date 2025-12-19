@@ -214,23 +214,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     @objc func openSettings() {
-        if settingsWindow == nil {
-            let settingsView = SettingsView {
-                // On Save
-                self.settingsWindow?.close()
-                self.restartTimer()
-            }
-            
-            let hostingController = NSHostingController(rootView: settingsView)
-            let window = NSWindow(contentViewController: hostingController)
-            window.title = "GetUp Settings"
-            window.styleMask = [.titled, .closable]
-            window.center()
-            window.isReleasedWhenClosed = false
-            self.settingsWindow = window
+        // Check if settings window exists and is still valid
+        if let existingWindow = settingsWindow, existingWindow.isVisible {
+            // Window already exists and is visible, just bring it to front
+            existingWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
         }
         
-        settingsWindow?.makeKeyAndOrderFront(nil)
+        // Close any previous window that was closed by the user
+        if settingsWindow != nil {
+            settingsWindow = nil
+        }
+        
+        let settingsView = SettingsView {
+            // On Save
+            self.settingsWindow?.close()
+            self.settingsWindow = nil
+            self.restartTimer()
+        }
+        
+        let hostingController = NSHostingController(rootView: settingsView)
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "GetUp Settings"
+        window.styleMask = [.titled, .closable, .resizable]
+        window.setContentSize(NSSize(width: 340, height: 280))
+        window.center()
+        window.isReleasedWhenClosed = true // Allow proper cleanup
+        
+        self.settingsWindow = window
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
     
